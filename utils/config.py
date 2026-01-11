@@ -1,23 +1,24 @@
 import os
 
 # =========================
-# BASE DIRECTORY (CROSS-PLATFORM)
+# BASE DIRECTORY (READ-ONLY OK)
 # =========================
 
-BASE_DIR = os.getcwd()   # 🔑 works on Render + local
+BASE_DIR = os.getcwd()   # OK for assets (read-only)
 
 # =========================
-# ASSETS & TEMP DIRECTORIES
+# ASSETS (READ-ONLY)
 # =========================
 
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 FONTS_DIR = os.path.join(ASSETS_DIR, "fonts")
 MUSIC_DIR = os.path.join(ASSETS_DIR, "music")
-TEMP_DIR = os.path.join(BASE_DIR, "temp")
 
-os.makedirs(TEMP_DIR, exist_ok=True)
-os.makedirs(MUSIC_DIR, exist_ok=True)
-os.makedirs(FONTS_DIR, exist_ok=True)
+# =========================
+# TEMP DIRECTORY (WRITE ONLY HERE)
+# =========================
+
+TEMP_DIR = "/tmp"
 
 # =========================
 # VIDEO PIPELINE PATHS
@@ -44,5 +45,5 @@ BG_MUSIC_MAP = {
 # TEXT / SUBTITLES
 # =========================
 
-SCRIPT_TEXT = ""           # Filled at runtime
+SCRIPT_TEXT = ""
 DISABLE_TEXT_OVERLAY = True

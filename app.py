@@ -1,4 +1,6 @@
 import streamlit as st
+import io
+
 from services.video_fetcher import fetch_video
 from services.final_renderer import render_final
 from services.voice_generator import generate_ai_voice
@@ -13,11 +15,11 @@ st.set_page_config(page_title="Auto Shorts Generator")
 st.title("🎬 Auto Shorts Generator")
 
 # ---------------- SESSION STATE ----------------
-if "video_path" not in st.session_state:
-    st.session_state.video_path = None
+if "video_bytes" not in st.session_state:
+    st.session_state.video_bytes = None
 
-if "srt_path" not in st.session_state:
-    st.session_state.srt_path = None
+if "srt_bytes" not in st.session_state:
+    st.session_state.srt_bytes = None
 # ------------------------------------------------
 
 # ---------------- UI INPUTS ----------------
@@ -40,56 +42,65 @@ if st.button("Generate"):
         st.error("Keyword and script required")
         st.stop()
 
-    # 🔹 Original script (Hindi / Hinglish allowed)
+    # Reset old outputs
+    st.session_state.video_bytes = None
+    st.session_state.srt_bytes = None
+
+    # Original script
     original_script = script.strip()
 
-    # 🔹 Disable burned text overlay completely (SRT only)
+    # Disable burned text overlay
     config.SCRIPT_TEXT = ""
 
-    st.write("📥 Fetching video...")
-    fetch_video(keyword)
+    with st.spinner("📥 Fetching video..."):
+        fetch_video(keyword)
 
-    st.write("🎙️ Generating voice...")
-    voice_path = generate_ai_voice(original_script)
+    with st.spinner("🎙️ Generating voice..."):
+        voice_path = generate_ai_voice(original_script)
 
-    st.write("🎵 Mixing background music...")
-    final_audio_path = mix_audio(voice_path, bg_music)
+    with st.spinner("🎵 Mixing background music..."):
+        final_audio_path = mix_audio(voice_path, bg_music)
 
-    st.write("⏱️ Calculating audio duration...")
-    duration = get_audio_duration(final_audio_path)
+    with st.spinner("⏱️ Calculating audio duration..."):
+        duration = get_audio_duration(final_audio_path)
 
-    st.write("💬 Generating subtitle track (CC)...")
-    srt_path = "temp/subtitles.srt"
-    generate_srt(original_script, duration, srt_path)
+    with st.spinner("💬 Generating subtitle track (CC)..."):
+        srt_path = "/tmp/subtitles.srt"
+        generate_srt(original_script, duration, srt_path)
 
-    st.write("🎬 Rendering final video...")
-    output = render_final()
+    with st.spinner("🎬 Rendering final video..."):
+        output_path = render_final()
 
-    # 🔹 Optional: embed CC track into MP4 (YouTube compatible)
     if embed_cc:
-        st.write("🧩 Embedding subtitles into video...")
-        cc_output = "temp/short_with_cc.mp4"
-        output = embed_srt(output, srt_path, cc_output)
+        with st.spinner("🧩 Embedding subtitles into video..."):
+            cc_output = "/tmp/short_with_cc.mp4"
+            output_path = embed_srt(output_path, srt_path, cc_output)
 
-    # ---------------- SAVE OUTPUT ----------------
-    st.session_state.video_path = output
-    st.session_state.srt_path = srt_path
+    # ---------------- READ FILES INTO MEMORY ----------------
+    with open(output_path, "rb") as f:
+        st.session_state.video_bytes = f.read()
 
-    st.success("✅ Done!")
+    with open(srt_path, "rb") as f:
+        st.session_state.srt_bytes = f.read()
 
-# ---------------- DOWNLOAD SECTION ----------------
-if st.session_state.video_path:
+    st.success("✅ Video generated successfully!")
+
+# ---------------- OUTPUT SECTION ----------------
+if st.session_state.video_bytes:
+    st.subheader("🎥 Preview")
+    st.video(st.session_state.video_bytes)
+
     st.download_button(
         "⬇️ Download video",
-        open(st.session_state.video_path, "rb"),
+        data=st.session_state.video_bytes,
         file_name="short.mp4",
         mime="video/mp4"
     )
 
-if st.session_state.srt_path:
+if st.session_state.srt_bytes:
     st.download_button(
         "⬇️ Download subtitles (SRT)",
-        open(st.session_state.srt_path, "rb"),
+        data=st.session_state.srt_bytes,
         file_name="subtitles.srt",
         mime="text/plain"
     )

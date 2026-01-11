@@ -1,36 +1,14 @@
 1
-00:00:00,000 --> 00:00:02,096
-Ye sirf ek kahani hai
+00:00:00,000 --> 00:00:05,553
+कोई साथ दे या न दे,
+तुम्हें खुद के लिए खड़ा होना होगा
 
 2
-00:00:02,096 --> 00:00:07,286
-Us raat ghar bilkul shaant tha,
-aur sab so chuke the
+00:00:05,553 --> 00:00:10,372
+क्योंकि जब जीत मिलती है,
+तो भीड़ खुद आ जाती है
 
 3
-00:00:07,286 --> 00:00:13,075
-Achaanak maa ki awaaz aayi,
-par maa us din
-shehar mein thi
-
-4
-00:00:13,075 --> 00:00:16,170
-Usne socha
-shayad galat suna ho
-
-5
-00:00:16,170 --> 00:00:22,757
-Par jab awaaz
-dobara aayi,
-toh wo bilkul
-uske kaan ke paas se aayi
-
-6
-00:00:22,757 --> 00:00:26,251
-Usne peeche mudne ki
-himmat nahi ki
-
-7
-00:00:26,251 --> 00:00:28,746
-Ye ek kalpanik kahani hai
+00:00:10,372 --> 00:00:12,258
+आज मेहनत, कल मुकाम
 
