@@ -1,4 +1,5 @@
 streamlit
+google-cloud-storage
 requests
 gtts
 moviepy

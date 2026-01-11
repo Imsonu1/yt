@@ -1,22 +1,29 @@
+# ---------------- BASE IMAGE ----------------
 FROM python:3.10-slim
 
-# Install ffmpeg
-RUN apt-get update && apt-get install -y ffmpeg && rm -rf /var/lib/apt/lists/*
+# ---------------- SYSTEM DEPS ----------------
+RUN apt-get update && apt-get install -y \
+    ffmpeg \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
 
+# ---------------- WORKDIR ----------------
 WORKDIR /app
 
+# ---------------- INSTALL PYTHON DEPS ----------------
 COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
+# ---------------- COPY APP CODE ----------------
 COPY . .
 
-# Cloud Run provides PORT env variable
-ENV PORT=8501
+# ---------------- STREAMLIT CONFIG ----------------
+ENV STREAMLIT_SERVER_PORT=8080
+ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
+ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
 
-EXPOSE 8501
+# ---------------- EXPOSE PORT ----------------
+EXPOSE 8080
 
-CMD streamlit run app.py \
-    --server.port=$PORT \
-    --server.address=0.0.0.0 \
-    --server.enableCORS=false \
-    --server.enableXsrfProtection=false
+# ---------------- START APP ----------------
+CMD ["streamlit", "run", "app.py", "--server.port=8080", "--server.address=0.0.0.0"]
