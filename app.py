@@ -1,6 +1,5 @@
 import streamlit as st
 import uuid
-from google.cloud import storage
 
 from services.video_fetcher import fetch_video
 from services.final_renderer import render_final
@@ -12,7 +11,7 @@ from utils.audio import get_audio_duration
 from utils import config
 
 # ================= CONFIG =================
-GCS_BUCKET_NAME = "auto-shorts-output"  # 🔴 CHANGE THIS
+GCS_BUCKET_NAME = "auto-shorts-output"  # 🔴 change to your bucket
 # =========================================
 
 
@@ -30,7 +29,20 @@ if "srt_bytes" not in st.session_state:
 
 
 def upload_to_gcs(local_path: str, content_type: str) -> str:
-    """Upload file to GCS and return signed download URL"""
+    """
+    Upload file to GCS and return signed download URL.
+    Import is done lazily to avoid app crash.
+    """
+    try:
+        from google.cloud import storage
+    except Exception as e:
+        st.error(
+            "❌ Google Cloud Storage library not installed.\n\n"
+            "Add `google-cloud-storage` to requirements.txt "
+            "and redeploy Cloud Run."
+        )
+        st.stop()
+
     client = storage.Client()
     bucket = client.bucket(GCS_BUCKET_NAME)
 
@@ -41,7 +53,7 @@ def upload_to_gcs(local_path: str, content_type: str) -> str:
 
     return blob.generate_signed_url(
         version="v4",
-        expiration=3600,  # 1 hour
+        expiration=3600,
         method="GET"
     )
 
@@ -102,8 +114,7 @@ if submitted:
             output_path = embed_srt(output_path, srt_path, cc_output)
 
     with st.spinner("☁️ Uploading video to cloud..."):
-        video_url = upload_to_gcs(output_path, "video/mp4")
-        st.session_state.video_url = video_url
+        st.session_state.video_url = upload_to_gcs(output_path, "video/mp4")
 
     with open(srt_path, "rb") as f:
         st.session_state.srt_bytes = f.read()
@@ -113,7 +124,6 @@ if submitted:
 
 # ================= OUTPUT =================
 if st.session_state.video_url:
-
     st.subheader("⬇️ Download")
     st.markdown(f"### 🎬 [Download Video]({st.session_state.video_url})")
 
