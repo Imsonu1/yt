@@ -1,6 +1,14 @@
 import os
 
-BASE_DIR = r"E:\yt"
+# =========================
+# BASE DIRECTORY (CROSS-PLATFORM)
+# =========================
+
+BASE_DIR = os.getcwd()   # 🔑 works on Render + local
+
+# =========================
+# ASSETS & TEMP DIRECTORIES
+# =========================
 
 ASSETS_DIR = os.path.join(BASE_DIR, "assets")
 FONTS_DIR = os.path.join(ASSETS_DIR, "fonts")
@@ -18,7 +26,7 @@ os.makedirs(FONTS_DIR, exist_ok=True)
 BASE_VIDEO_PATH = os.path.join(TEMP_DIR, "base_video.mp4")
 TEXT_VIDEO_PATH = os.path.join(TEMP_DIR, "text_video.mp4")
 TEMP_AUDIO_PATH = os.path.join(TEMP_DIR, "voice_temp.wav")
-VOICE_PATH = os.path.join(TEMP_DIR, "voice.mp3")   # ✅ REQUIRED
+VOICE_PATH = os.path.join(TEMP_DIR, "voice.mp3")
 FINAL_VIDEO_PATH = os.path.join(TEMP_DIR, "final.mp4")
 
 # =========================
@@ -33,8 +41,8 @@ BG_MUSIC_MAP = {
 }
 
 # =========================
-# TEXT
+# TEXT / SUBTITLES
 # =========================
 
-SCRIPT_TEXT = ""   # filled at runtime from app.py
+SCRIPT_TEXT = ""           # Filled at runtime
 DISABLE_TEXT_OVERLAY = True
