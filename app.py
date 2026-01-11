@@ -20,40 +20,38 @@ if "video_bytes" not in st.session_state:
 
 if "srt_bytes" not in st.session_state:
     st.session_state.srt_bytes = None
-
-if "generated" not in st.session_state:
-    st.session_state.generated = False
 # ------------------------------------------------
 
-# ---------------- UI INPUTS ----------------
-keyword = st.text_input("Video keyword")
-script = st.text_area("Paste your script")
 
-bg_music = st.selectbox(
-    "Background music",
-    ["None", "Calm", "Ocean", "Motivation"]
-)
+# ================= FORM (CRITICAL FIX) =================
+with st.form("generate_form"):
 
-embed_cc = st.checkbox(
-    "Embed subtitles (CC) inside video (YouTube)",
-    value=False
-)
-# -------------------------------------------
+    keyword = st.text_input("Video keyword")
+    script = st.text_area("Paste your script")
 
-if st.button("Generate"):
+    bg_music = st.selectbox(
+        "Background music",
+        ["None", "Calm", "Ocean", "Motivation"]
+    )
+
+    embed_cc = st.checkbox(
+        "Embed subtitles (CC) inside video (YouTube)",
+        value=False
+    )
+
+    submitted = st.form_submit_button("Generate")
+
+
+# ================= GENERATION =================
+if submitted:
     if not keyword or not script:
         st.error("Keyword and script required")
         st.stop()
 
-    # Reset old outputs
     st.session_state.video_bytes = None
     st.session_state.srt_bytes = None
-    st.session_state.generated = False
 
-    # Original script
     original_script = script.strip()
-
-    # Disable burned text overlay
     config.SCRIPT_TEXT = ""
 
     with st.spinner("📥 Fetching video..."):
@@ -80,35 +78,34 @@ if st.button("Generate"):
             cc_output = "/tmp/short_with_cc.mp4"
             output_path = embed_srt(output_path, srt_path, cc_output)
 
-    # ---------------- READ FILES INTO MEMORY ----------------
+    # -------- READ FILES INTO MEMORY (NO PATH USE LATER) --------
     with open(output_path, "rb") as f:
         st.session_state.video_bytes = f.read()
 
     with open(srt_path, "rb") as f:
         st.session_state.srt_bytes = f.read()
 
-    st.session_state.generated = True
     st.success("✅ Video generated successfully!")
 
-# ---------------- OUTPUT SECTION ----------------
-if st.session_state.generated:
+
+# ================= OUTPUT / DOWNLOAD =================
+if st.session_state.video_bytes:
 
     st.subheader("🎥 Preview")
     st.video(st.session_state.video_bytes)
 
     st.download_button(
         "⬇️ Download video",
-        data=st.session_state.video_bytes,
+        data=io.BytesIO(st.session_state.video_bytes),
         file_name="short.mp4",
-        mime="video/mp4",
-        key="download_video"
+        mime="video/mp4"
     )
 
+if st.session_state.srt_bytes:
     st.download_button(
         "⬇️ Download subtitles (SRT)",
-        data=st.session_state.srt_bytes,
+        data=io.BytesIO(st.session_state.srt_bytes),
         file_name="subtitles.srt",
-        mime="text/plain",
-        key="download_srt"
+        mime="text/plain"
     )
 # -------------------------------------------------
