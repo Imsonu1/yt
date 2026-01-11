@@ -1,163 +1,117 @@
-import streamlit as st
-import uuid
 import os
-import tempfile
-import threading
 import logging
+import streamlit as st
+from pathlib import Path
 
 from services.video_fetcher import fetch_video
-from services.final_renderer import render_final
 from services.voice_generator import generate_ai_voice
-from services.music_mixer import mix_audio
+from services.audio_mixer import mix_audio
 from services.subtitle_generator import generate_srt
-from services.subtitle_muxer import embed_srt
-from utils.audio import get_audio_duration
-from utils import config
-
-# ================= LOGGING =================
-logging.basicConfig(level=logging.INFO)
-
-# ================= ENV DETECTION =================
-IS_CLOUD = os.getenv("K_SERVICE") is not None
+from services.video_renderer import render_final
+from services.subtitle_embedder import embed_srt
+from services.utils import get_audio_duration
 
 # ================= CONFIG =================
-GCS_BUCKET_NAME = "auto-shorts-output"
-TMP_DIR = tempfile.gettempdir()
-SRT_PATH = os.path.join(TMP_DIR, "subtitles.srt")
-CC_OUTPUT_PATH = os.path.join(TMP_DIR, "short_with_cc.mp4")
+BASE_DIR = Path(__file__).parent
+OUTPUT_DIR = BASE_DIR / "output"
+OUTPUT_DIR.mkdir(exist_ok=True)
 
-# ---------------- PAGE SETUP ----------------
-st.set_page_config(page_title="Auto Shorts Generator")
+BASE_VIDEO_PATH = OUTPUT_DIR / "base_video.mp4"
+VOICE_PATH = OUTPUT_DIR / "voice.mp3"
+FINAL_AUDIO_PATH = OUTPUT_DIR / "final_audio.mp3"
+SRT_PATH = OUTPUT_DIR / "subtitles.srt"
+FINAL_VIDEO_PATH = OUTPUT_DIR / "final_video.mp4"
+FINAL_CC_VIDEO_PATH = OUTPUT_DIR / "final_cc_video.mp4"
+
+logging.basicConfig(level=logging.INFO)
+
+# ================= UI =================
+st.set_page_config(page_title="Auto Shorts Generator", layout="centered")
+
 st.title("🎬 Auto Shorts Generator")
 
-# ---------------- SESSION STATE ----------------
-for key in ["video_path", "video_url", "srt_bytes", "status"]:
-    if key not in st.session_state:
-        st.session_state[key] = None
+keyword = st.text_input("Video keyword", placeholder="nature, hills")
+script = st.text_area("Paste your script", height=150)
+
+bg_music = st.selectbox(
+    "Background music",
+    ["None", "Calm", "Ocean"]
+)
+
+embed_cc = st.checkbox(
+    "Embed subtitles (CC) inside video (YouTube)", value=True)
+
+generate = st.button("Generate")
+
+# ================= STATE =================
+if "video_ready" not in st.session_state:
+    st.session_state.video_ready = False
+
+if "video_path" not in st.session_state:
+    st.session_state.video_path = None
+
+# ================= LOGIC =================
 
 
-def upload_to_gcs(local_path: str, content_type: str) -> str:
-    from google.cloud import storage
+def generate_video():
+    st.info("📥 Fetching stock video...")
+    fetch_video(keyword, str(BASE_VIDEO_PATH))
 
-    client = storage.Client()
-    bucket = client.bucket(GCS_BUCKET_NAME)
+    st.info("🎙 Generating voice...")
+    generate_ai_voice(script, str(VOICE_PATH))
 
-    blob_name = f"shorts/{uuid.uuid4()}.mp4"
-    blob = bucket.blob(blob_name)
-    blob.upload_from_filename(local_path, content_type=content_type)
+    st.info("🎵 Mixing audio...")
+    mix_audio(str(VOICE_PATH), bg_music, str(FINAL_AUDIO_PATH))
 
-    return blob.generate_signed_url(
-        version="v4",
-        expiration=3600,
-        method="GET"
+    duration = get_audio_duration(str(FINAL_AUDIO_PATH))
+
+    st.info("📝 Generating subtitles...")
+    generate_srt(script, duration, str(SRT_PATH))
+
+    st.info("🎞 Rendering video...")
+    render_final(
+        base_video=str(BASE_VIDEO_PATH),
+        audio=str(FINAL_AUDIO_PATH),
+        output=str(FINAL_VIDEO_PATH)
     )
 
+    final_output = FINAL_VIDEO_PATH
 
-def run_generation(keyword, script, bg_music, embed_cc):
-    try:
-        logging.info("Generation started")
-        st.session_state.status = "Fetching video..."
+    if embed_cc:
+        st.info("🔤 Embedding subtitles...")
+        embed_srt(
+            video=str(FINAL_VIDEO_PATH),
+            srt=str(SRT_PATH),
+            output=str(FINAL_CC_VIDEO_PATH)
+        )
+        final_output = FINAL_CC_VIDEO_PATH
 
-        fetch_video(keyword)
-
-        st.session_state.status = "Generating voice..."
-        voice_path = generate_ai_voice(script)
-
-        st.session_state.status = "Mixing audio..."
-        final_audio_path = mix_audio(voice_path, bg_music)
-
-        st.session_state.status = "Calculating duration..."
-        duration = get_audio_duration(final_audio_path)
-
-        st.session_state.status = "Generating subtitles..."
-        generate_srt(script, duration, SRT_PATH)
-
-        st.session_state.status = "Rendering video..."
-        output_path = render_final()
-
-        if embed_cc:
-            st.session_state.status = "Embedding subtitles..."
-            output_path = embed_srt(output_path, SRT_PATH, CC_OUTPUT_PATH)
-
-        if IS_CLOUD:
-            st.session_state.status = "Uploading to cloud..."
-            st.session_state.video_url = upload_to_gcs(
-                output_path, "video/mp4"
-            )
-        else:
-            st.session_state.video_path = output_path
-
-        with open(SRT_PATH, "rb") as f:
-            st.session_state.srt_bytes = f.read()
-
-        st.session_state.status = "DONE"
-        logging.info("Generation finished successfully")
-
-    except Exception as e:
-        logging.exception("Generation failed")
-        st.session_state.status = f"ERROR: {e}"
+    st.session_state.video_path = str(final_output)
+    st.session_state.video_ready = True
 
 
-# ================= FORM =================
-with st.form("generate_form"):
-    keyword = st.text_input("Video keyword")
-    script = st.text_area("Paste your script")
-
-    bg_music = st.selectbox(
-        "Background music",
-        ["None", "Calm", "Ocean", "Motivation"]
-    )
-
-    embed_cc = st.checkbox(
-        "Embed subtitles (CC) inside video (YouTube)",
-        value=False
-    )
-
-    submitted = st.form_submit_button("Generate")
-
-
-# ================= GENERATION TRIGGER =================
-if submitted:
+# ================= RUN =================
+if generate:
     if not keyword or not script:
-        st.error("Keyword and script required")
+        st.error("Keyword and script are required")
         st.stop()
 
+    st.session_state.video_ready = False
     st.session_state.video_path = None
-    st.session_state.video_url = None
-    st.session_state.srt_bytes = None
-    st.session_state.status = "Starting..."
 
-    threading.Thread(
-        target=run_generation,
-        args=(keyword, script.strip(), bg_music, embed_cc),
-        daemon=True
-    ).start()
-
-    st.info("🎬 Video generation started. Please wait...")
-
-
-# ================= STATUS =================
-if st.session_state.status and st.session_state.status != "DONE":
-    st.warning(st.session_state.status)
+    with st.spinner("⏳ Generating video. Please wait..."):
+        generate_video()
 
 # ================= OUTPUT =================
-if st.session_state.video_path:
-    st.subheader("🎬 Preview")
+if st.session_state.video_ready:
+    st.success("✅ Video generated successfully!")
+
     st.video(st.session_state.video_path)
 
-if st.session_state.video_url:
-    st.subheader("⬇️ Download")
-    st.markdown(
-        f"### 🎬 [Download Video]({st.session_state.video_url})"
-    )
-
-if st.session_state.srt_bytes:
-    st.download_button(
-        "⬇️ Download subtitles (SRT)",
-        data=st.session_state.srt_bytes,
-        file_name="subtitles.srt",
-        mime="text/plain"
-    )
-
-if st.session_state.status == "DONE":
-    st.success("✅ Video ready!")
+    with open(st.session_state.video_path, "rb") as f:
+        st.download_button(
+            "⬇️ Download video",
+            f,
+            file_name="short_video.mp4",
+            mime="video/mp4"
+        )
