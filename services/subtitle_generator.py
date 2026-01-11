@@ -1,4 +1,5 @@
 import re
+import os
 
 
 def seconds_to_srt_time(sec):
@@ -10,6 +11,9 @@ def seconds_to_srt_time(sec):
 
 
 def generate_srt(script_text, duration, output_path):
+    # ✅ CRITICAL FIX: ensure directory exists (Render-safe)
+    os.makedirs(os.path.dirname(output_path), exist_ok=True)
+
     # Split by sentence / natural pause
     parts = re.split(r"[।.!?]+", script_text)
     parts = [p.strip() for p in parts if p.strip()]

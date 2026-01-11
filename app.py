@@ -8,6 +8,7 @@ from services.subtitle_muxer import embed_srt
 from utils.audio import get_audio_duration
 from utils import config
 
+# ---------------- PAGE SETUP ----------------
 st.set_page_config(page_title="Auto Shorts Generator")
 st.title("🎬 Auto Shorts Generator")
 
@@ -19,6 +20,7 @@ if "srt_path" not in st.session_state:
     st.session_state.srt_path = None
 # ------------------------------------------------
 
+# ---------------- UI INPUTS ----------------
 keyword = st.text_input("Video keyword")
 script = st.text_area("Paste your script")
 
@@ -31,16 +33,17 @@ embed_cc = st.checkbox(
     "Embed subtitles (CC) inside video (YouTube)",
     value=False
 )
+# -------------------------------------------
 
 if st.button("Generate"):
-    if not keyword or not script.strip():
+    if not keyword or not script:
         st.error("Keyword and script required")
         st.stop()
 
-    # Original script for voice + subtitles
+    # 🔹 Original script (Hindi / Hinglish allowed)
     original_script = script.strip()
 
-    # HARD disable burned captions forever
+    # 🔹 Disable burned text overlay completely (SRT only)
     config.SCRIPT_TEXT = ""
 
     st.write("📥 Fetching video...")
@@ -52,21 +55,23 @@ if st.button("Generate"):
     st.write("🎵 Mixing background music...")
     final_audio_path = mix_audio(voice_path, bg_music)
 
-    # ✅ Render-safe duration
+    st.write("⏱️ Calculating audio duration...")
     duration = get_audio_duration(final_audio_path)
 
     st.write("💬 Generating subtitle track (CC)...")
-    srt_path = "E:/yt/temp/subtitles.srt"
+    srt_path = "temp/subtitles.srt"
     generate_srt(original_script, duration, srt_path)
 
     st.write("🎬 Rendering final video...")
     output = render_final()
 
+    # 🔹 Optional: embed CC track into MP4 (YouTube compatible)
     if embed_cc:
-        st.write("🧩 Embedding subtitle track...")
-        cc_output = "E:/yt/temp/short_with_cc.mp4"
+        st.write("🧩 Embedding subtitles into video...")
+        cc_output = "temp/short_with_cc.mp4"
         output = embed_srt(output, srt_path, cc_output)
 
+    # ---------------- SAVE OUTPUT ----------------
     st.session_state.video_path = output
     st.session_state.srt_path = srt_path
 
