@@ -27,21 +27,20 @@ bg_music = st.selectbox(
     ["None", "Calm", "Ocean", "Motivation"]
 )
 
-# ✅ OPTION: EMBED CC
 embed_cc = st.checkbox(
     "Embed subtitles (CC) inside video (YouTube)",
     value=False
 )
 
 if st.button("Generate"):
-    if not keyword or not script:
+    if not keyword or not script.strip():
         st.error("Keyword and script required")
         st.stop()
 
-    # 🔹 Original script (Hindi allowed) → voice + subtitles
+    # Original script for voice + subtitles
     original_script = script.strip()
 
-    # 🔒 HARD DISABLE ANY TEXT OVERLAY (burned captions)
+    # HARD disable burned captions forever
     config.SCRIPT_TEXT = ""
 
     st.write("📥 Fetching video...")
@@ -53,6 +52,7 @@ if st.button("Generate"):
     st.write("🎵 Mixing background music...")
     final_audio_path = mix_audio(voice_path, bg_music)
 
+    # ✅ Render-safe duration
     duration = get_audio_duration(final_audio_path)
 
     st.write("💬 Generating subtitle track (CC)...")
@@ -62,13 +62,11 @@ if st.button("Generate"):
     st.write("🎬 Rendering final video...")
     output = render_final()
 
-    # ✅ OPTIONAL CC EMBED (YouTube only)
     if embed_cc:
-        st.write("🧩 Embedding subtitle track into video...")
+        st.write("🧩 Embedding subtitle track...")
         cc_output = "E:/yt/temp/short_with_cc.mp4"
         output = embed_srt(output, srt_path, cc_output)
 
-    # ✅ STORE OUTPUT PATHS
     st.session_state.video_path = output
     st.session_state.srt_path = srt_path
 
