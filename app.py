@@ -1,5 +1,7 @@
 import streamlit as st
 import uuid
+import os
+import tempfile
 
 from services.video_fetcher import fetch_video
 from services.final_renderer import render_final
@@ -10,38 +12,35 @@ from services.subtitle_muxer import embed_srt
 from utils.audio import get_audio_duration
 from utils import config
 
-# ================= CONFIG =================
-GCS_BUCKET_NAME = "auto-shorts-output"  # 🔴 change to your bucket
-# =========================================
+# ================= ENV DETECTION =================
+IS_CLOUD = os.getenv("K_SERVICE") is not None
 
+# ================= CONFIG =================
+GCS_BUCKET_NAME = "auto-shorts-output"
+TMP_DIR = tempfile.gettempdir()
+SRT_PATH = os.path.join(TMP_DIR, "subtitles.srt")
+CC_OUTPUT_PATH = os.path.join(TMP_DIR, "short_with_cc.mp4")
+# ================================================
 
 # ---------------- PAGE SETUP ----------------
 st.set_page_config(page_title="Auto Shorts Generator")
 st.title("🎬 Auto Shorts Generator")
 
 # ---------------- SESSION STATE ----------------
+if "video_path" not in st.session_state:
+    st.session_state.video_path = None
+
 if "video_url" not in st.session_state:
     st.session_state.video_url = None
 
 if "srt_bytes" not in st.session_state:
     st.session_state.srt_bytes = None
-# ------------------------------------------------
+# ---------------------------------------------
 
 
 def upload_to_gcs(local_path: str, content_type: str) -> str:
-    """
-    Upload file to GCS and return signed download URL.
-    Import is done lazily to avoid app crash.
-    """
-    try:
-        from google.cloud import storage
-    except Exception as e:
-        st.error(
-            "❌ Google Cloud Storage library not installed.\n\n"
-            "Add `google-cloud-storage` to requirements.txt "
-            "and redeploy Cloud Run."
-        )
-        st.stop()
+    """Upload file to GCS and return signed URL (Cloud only)."""
+    from google.cloud import storage
 
     client = storage.Client()
     bucket = client.bucket(GCS_BUCKET_NAME)
@@ -60,7 +59,6 @@ def upload_to_gcs(local_path: str, content_type: str) -> str:
 
 # ================= FORM =================
 with st.form("generate_form"):
-
     keyword = st.text_input("Video keyword")
     script = st.text_area("Paste your script")
 
@@ -83,6 +81,7 @@ if submitted:
         st.error("Keyword and script required")
         st.stop()
 
+    st.session_state.video_path = None
     st.session_state.video_url = None
     st.session_state.srt_bytes = None
 
@@ -101,28 +100,35 @@ if submitted:
     with st.spinner("⏱️ Calculating audio duration..."):
         duration = get_audio_duration(final_audio_path)
 
-    with st.spinner("💬 Generating subtitle track (CC)..."):
-        srt_path = "/tmp/subtitles.srt"
-        generate_srt(original_script, duration, srt_path)
+    with st.spinner("💬 Generating subtitles..."):
+        generate_srt(original_script, duration, SRT_PATH)
 
     with st.spinner("🎬 Rendering final video..."):
         output_path = render_final()
 
     if embed_cc:
-        with st.spinner("🧩 Embedding subtitles into video..."):
-            cc_output = "/tmp/short_with_cc.mp4"
-            output_path = embed_srt(output_path, srt_path, cc_output)
+        with st.spinner("🧩 Embedding subtitles..."):
+            output_path = embed_srt(output_path, SRT_PATH, CC_OUTPUT_PATH)
 
-    with st.spinner("☁️ Uploading video to cloud..."):
-        st.session_state.video_url = upload_to_gcs(output_path, "video/mp4")
+    # ---------- LOCAL VS CLOUD ----------
+    if IS_CLOUD:
+        with st.spinner("☁️ Uploading to cloud..."):
+            st.session_state.video_url = upload_to_gcs(
+                output_path, "video/mp4")
+    else:
+        st.session_state.video_path = output_path
 
-    with open(srt_path, "rb") as f:
+    with open(SRT_PATH, "rb") as f:
         st.session_state.srt_bytes = f.read()
 
     st.success("✅ Video ready!")
 
 
 # ================= OUTPUT =================
+if st.session_state.video_path:
+    st.subheader("🎬 Preview (Local)")
+    st.video(st.session_state.video_path)
+
 if st.session_state.video_url:
     st.subheader("⬇️ Download")
     st.markdown(f"### 🎬 [Download Video]({st.session_state.video_url})")
@@ -134,4 +140,3 @@ if st.session_state.srt_bytes:
         file_name="subtitles.srt",
         mime="text/plain"
     )
-# ------------------------------------------------

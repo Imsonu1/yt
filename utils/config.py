@@ -1,4 +1,5 @@
 import os
+import tempfile
 
 # =========================
 # BASE DIRECTORY (READ-ONLY OK)
@@ -16,9 +17,10 @@ MUSIC_DIR = os.path.join(ASSETS_DIR, "music")
 
 # =========================
 # TEMP DIRECTORY (WRITE ONLY HERE)
+# Works on Windows + Linux + Cloud Run
 # =========================
 
-TEMP_DIR = "/tmp"
+TEMP_DIR = tempfile.gettempdir()
 
 # =========================
 # VIDEO PIPELINE PATHS
