@@ -20,6 +20,9 @@ if "video_bytes" not in st.session_state:
 
 if "srt_bytes" not in st.session_state:
     st.session_state.srt_bytes = None
+
+if "generated" not in st.session_state:
+    st.session_state.generated = False
 # ------------------------------------------------
 
 # ---------------- UI INPUTS ----------------
@@ -45,6 +48,7 @@ if st.button("Generate"):
     # Reset old outputs
     st.session_state.video_bytes = None
     st.session_state.srt_bytes = None
+    st.session_state.generated = False
 
     # Original script
     original_script = script.strip()
@@ -83,10 +87,12 @@ if st.button("Generate"):
     with open(srt_path, "rb") as f:
         st.session_state.srt_bytes = f.read()
 
+    st.session_state.generated = True
     st.success("✅ Video generated successfully!")
 
 # ---------------- OUTPUT SECTION ----------------
-if st.session_state.video_bytes:
+if st.session_state.generated:
+
     st.subheader("🎥 Preview")
     st.video(st.session_state.video_bytes)
 
@@ -94,14 +100,15 @@ if st.session_state.video_bytes:
         "⬇️ Download video",
         data=st.session_state.video_bytes,
         file_name="short.mp4",
-        mime="video/mp4"
+        mime="video/mp4",
+        key="download_video"
     )
 
-if st.session_state.srt_bytes:
     st.download_button(
         "⬇️ Download subtitles (SRT)",
         data=st.session_state.srt_bytes,
         file_name="subtitles.srt",
-        mime="text/plain"
+        mime="text/plain",
+        key="download_srt"
     )
 # -------------------------------------------------
