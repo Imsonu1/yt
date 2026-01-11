@@ -1,5 +1,6 @@
 import streamlit as st
-import io
+import uuid
+from google.cloud import storage
 
 from services.video_fetcher import fetch_video
 from services.final_renderer import render_final
@@ -10,20 +11,42 @@ from services.subtitle_muxer import embed_srt
 from utils.audio import get_audio_duration
 from utils import config
 
+# ================= CONFIG =================
+GCS_BUCKET_NAME = "auto-shorts-output"  # 🔴 CHANGE THIS
+# =========================================
+
+
 # ---------------- PAGE SETUP ----------------
 st.set_page_config(page_title="Auto Shorts Generator")
 st.title("🎬 Auto Shorts Generator")
 
 # ---------------- SESSION STATE ----------------
-if "video_bytes" not in st.session_state:
-    st.session_state.video_bytes = None
+if "video_url" not in st.session_state:
+    st.session_state.video_url = None
 
 if "srt_bytes" not in st.session_state:
     st.session_state.srt_bytes = None
 # ------------------------------------------------
 
 
-# ================= FORM (CRITICAL FIX) =================
+def upload_to_gcs(local_path: str, content_type: str) -> str:
+    """Upload file to GCS and return signed download URL"""
+    client = storage.Client()
+    bucket = client.bucket(GCS_BUCKET_NAME)
+
+    blob_name = f"shorts/{uuid.uuid4()}.mp4"
+    blob = bucket.blob(blob_name)
+
+    blob.upload_from_filename(local_path, content_type=content_type)
+
+    return blob.generate_signed_url(
+        version="v4",
+        expiration=3600,  # 1 hour
+        method="GET"
+    )
+
+
+# ================= FORM =================
 with st.form("generate_form"):
 
     keyword = st.text_input("Video keyword")
@@ -48,7 +71,7 @@ if submitted:
         st.error("Keyword and script required")
         st.stop()
 
-    st.session_state.video_bytes = None
+    st.session_state.video_url = None
     st.session_state.srt_bytes = None
 
     original_script = script.strip()
@@ -78,34 +101,27 @@ if submitted:
             cc_output = "/tmp/short_with_cc.mp4"
             output_path = embed_srt(output_path, srt_path, cc_output)
 
-    # -------- READ FILES INTO MEMORY (NO PATH USE LATER) --------
-    with open(output_path, "rb") as f:
-        st.session_state.video_bytes = f.read()
+    with st.spinner("☁️ Uploading video to cloud..."):
+        video_url = upload_to_gcs(output_path, "video/mp4")
+        st.session_state.video_url = video_url
 
     with open(srt_path, "rb") as f:
         st.session_state.srt_bytes = f.read()
 
-    st.success("✅ Video generated successfully!")
+    st.success("✅ Video ready!")
 
 
-# ================= OUTPUT / DOWNLOAD =================
-if st.session_state.video_bytes:
+# ================= OUTPUT =================
+if st.session_state.video_url:
 
-    st.subheader("🎥 Preview")
-    st.video(st.session_state.video_bytes)
-
-    st.download_button(
-        "⬇️ Download video",
-        data=io.BytesIO(st.session_state.video_bytes),
-        file_name="short.mp4",
-        mime="video/mp4"
-    )
+    st.subheader("⬇️ Download")
+    st.markdown(f"### 🎬 [Download Video]({st.session_state.video_url})")
 
 if st.session_state.srt_bytes:
     st.download_button(
         "⬇️ Download subtitles (SRT)",
-        data=io.BytesIO(st.session_state.srt_bytes),
+        data=st.session_state.srt_bytes,
         file_name="subtitles.srt",
         mime="text/plain"
     )
-# -------------------------------------------------
+# ------------------------------------------------
