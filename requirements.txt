@@ -1,7 +1,0 @@
-streamlit
-google-cloud-storage
-requests
-gtts
-moviepy
-pydub
-ffmpeg-python
